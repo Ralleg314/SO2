@@ -5,11 +5,16 @@
 int compara(const void *p1, const void *p2)
 {
   char *str1, *str2;
+  int last1=1, last2=1;
 
   str1 = *((char **) p1); 
   str2 = *((char **) p2);
 
-  return strcmp(str1,str2);
+  if(str1[strlen(str1)-last1]<str2[strlen(str2)-last2])
+      return -1;
+  if(str1[strlen(str1)-last1]>str2[strlen(str2)-last2])
+      return 1;
+  return 0;
 }
 
 int main(void)
