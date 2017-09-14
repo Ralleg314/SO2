@@ -4,15 +4,18 @@
 
 int compara(const void *p1, const void *p2)
 {
-  int value;
   char *str1, *str2;
 
   str1 = *((char **) p1); 
   str2 = *((char **) p2);
+  
+  if(strlen(str1)<strlen(str2))
+      return -1;
+  
+  if(strlen(str1)>strlen(str2))
+      return 1;
+  return 0;
 
-  value = // el que sigui
-
-  return value;
 }
 
 int main(void)

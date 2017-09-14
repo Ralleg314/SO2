@@ -4,15 +4,12 @@
 
 int compara(const void *p1, const void *p2)
 {
-  int value;
   char *str1, *str2;
 
   str1 = *((char **) p1); 
   str2 = *((char **) p2);
 
-  value = // el que sigui
-
-  return value;
+  return strcmp(str1,str2);
 }
 
 int main(void)
