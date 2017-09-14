@@ -3,10 +3,10 @@
 
 int compara(const void *p1, const void *p2)
 {
-  int *num1, *num2;
+  float *num1, *num2;
 
-  num1 = (int *) p1;
-  num2 = (int *) p2;
+  num1 = (float *) p1;
+  num2 = (float *) p2;
 
   if (*num1 < *num2)
     return 1;
