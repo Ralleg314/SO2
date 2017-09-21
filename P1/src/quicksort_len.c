@@ -18,20 +18,54 @@ int compara(const void *p1, const void *p2)
 
 }
 
-int main(void)
+char* slice_str(const char * str, size_t end)
 {
-  int i;
-  char *vector[8] = {"hola", "sistemes", "operatius", "dos", "cadena", 
-                     "quicksort", "canonada", "compara"};
+    const size_t len = strlen(str);
+    char *buffer;
+    buffer = (char*)malloc((len+1)*sizeof(char));
+    
+    size_t j = 0;
+    for ( size_t i = 0; i <= end; ++i ) {
+        buffer[j++] = str[i];
+    }
+    buffer[j] = 0;
+    return buffer;
+}
 
-  qsort(vector, 8, sizeof(char *), compara);
 
-  printf("El vector ordenat és\n");
+int main()
+{
+   FILE *fp;
+   int longFile;
+   char str[100];
+   char **vector;
+   int i;   
 
-  for(i = 0; i < 8; i++)
-    printf("%s\n", vector[i]);
+   /* opening file for reading */
+   fp = fopen("../dades/strings.txt" , "r");
+   if(fp == NULL) 
+   {
+      perror("Error opening file");
+      return(-1);
+   }
+   //cuantas lineas hay
+   longFile = atoi(fgets(str, 100, fp));
+   vector = (char **) malloc(longFile*sizeof(char[100]));
+   if(vector==NULL){
+	return 1;
+   }
+   for(i=longFile; i>=0; i--)
+   {
+      fgets(str, 100, fp);
+      //guardar menos el ultimo caracter (es un salto de linea)
+      vector[i-1] = slice_str(str,strlen(str)-2);
+   }
 
-  printf("\n");
-
-  return 0;
+   fclose(fp);
+   
+   qsort(vector, longFile, sizeof(char*), compara);
+   
+   for(i=0; i<longFile;i+=100)printf("%s\n",vector[i]);
+   
+   return(0);
 }
