@@ -6,8 +6,8 @@ int compara(const void *p1, const void *p2)
 {
   int *num1, *num2;
 
-  num1 = (int *) p1;
-  num2 = (int *) p2;
+  num1 = (float *) p1;
+  num2 = (float *) p2;
 
   if (*num1 < *num2)
     return 1;
@@ -22,8 +22,8 @@ char* slice_str(const char * str, size_t end)
     char *buffer;
     buffer = (char*)malloc((len+1)*sizeof(char));
     
-    size_t j = 0;
-    for ( size_t i = 0; i <= end; ++i ) {
+    size_t i, j = 0;
+    for ( i = 0; i <= end; ++i ) {
         buffer[j++] = str[i];
     }
     buffer[j] = 0;

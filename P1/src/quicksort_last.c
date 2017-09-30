@@ -23,8 +23,8 @@ char* slice_str(const char * str, size_t end)
     char *buffer;
     buffer = (char*)malloc((len+1)*sizeof(char));
     
-    size_t j = 0;
-    for ( size_t i = 0; i <= end; ++i ) {
+    size_t i, j = 0;
+    for ( i = 0; i <= end; ++i ) {
         buffer[j++] = str[i];
     }
     buffer[j] = 0;
@@ -49,7 +49,7 @@ int main()
    }
    //cuantas lineas hay
    longFile = atoi(fgets(str, 100, fp));
-   vector = (char **) malloc(longFile*sizeof(char[100]));
+   vector = (char **) malloc(longFile*sizeof(char*));
    if(vector==NULL){
 	return 1;
    }
@@ -57,7 +57,8 @@ int main()
    {
       fgets(str, 100, fp);
       //guardar menos el ultimo caracter (es un salto de linea)
-      vector[i-1] = slice_str(str,strlen(str)-2);
+      vector[i] = (char *) malloc(sizeof(char)*strlen(str));
+      vector[i] = slice_str(str,strlen(str)-2);
    }
    
    fclose(fp);
