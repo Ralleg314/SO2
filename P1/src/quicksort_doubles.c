@@ -51,15 +51,12 @@ int main(void)
    if(vector==NULL){
 	return 1;
    }
-   for(i=longFile; i>0; i--)
+   for(i=0; i<longFile; i++)
    {
       fgets(str, 100, fp);
       //guardar menos el ultimo caracter (es un salto de linea)
-      vector[i-1] = atof(slice_str(str,strlen(str)-1));
+      vector[i] = atof(slice_str(str,strlen(str)-1));
    }
-   //este es el ultimo, no tiene salto de linea
-   fgets(str, 100, fp);
-   vector[0] = atof(str);
 
    fclose(fp);
    

@@ -6,8 +6,8 @@ int compara(const void *p1, const void *p2)
 {
   int *num1, *num2;
 
-  num1 = (float *) p1;
-  num2 = (float *) p2;
+  num1 = (int *) p1;
+  num2 = (int *) p2;
 
   if (*num1 < *num2)
     return 1;
@@ -39,7 +39,7 @@ int main(void)
    int i;   
 
    /* opening file for reading */
-   fp = fopen("../dades/float.txt" , "r");
+   fp = fopen("../dades/integers.txt" , "r");
    if(fp == NULL) 
    {
       perror("Error opening file");
@@ -51,15 +51,12 @@ int main(void)
    if(vector==NULL){
 	return 1;
    }
-   for(i=longFile; i>0; i--)
+   for(i=0; i<longFile; i++)
    {
       fgets(str, 100, fp);
       //guardar menos el ultimo caracter (es un salto de linea)
-      vector[i-1] = atoi(slice_str(str,strlen(str)-1));
+      vector[i] = atoi(slice_str(str,strlen(str)-1));
    }
-   //este es el ultimo, no tiene salto de linea
-   fgets(str, 100, fp);
-   vector[0] = atof(str);
 
    fclose(fp);
    
