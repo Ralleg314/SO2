@@ -23,8 +23,26 @@ int main(void)
     exit(EXIT_FAILURE);
   }
 
-  while (fgets(line, MAXLINE, fpin) != NULL) {
-    if (fputs(line, fpout) == EOF) {
+ 
+ 
+ 
+ 
+ 
+ //               ES ESOOOOOOOOOOOOOOOOO     (lee de salida standart, comando tiene que ser: pdftotext Archivo.pdf - | ./ejecutable )
+ //                            |
+ //                            |
+ //                            V
+ while (fgets(line, MAXLINE, stdin) != NULL) {
+ 
+     
+     
+     
+     
+     
+     
+     
+     
+     if (fputs(line, fpout) == EOF) {
       printf("ERROR: no puc escriure a la canonada.\n");
       exit(EXIT_FAILURE);
     }
