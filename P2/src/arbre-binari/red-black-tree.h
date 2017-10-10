@@ -8,7 +8,7 @@
  *
  */
 
-#define TYPE_RBTREE_KEY int
+#define TYPE_RBTREE_KEY char*
 
 /**
  *
