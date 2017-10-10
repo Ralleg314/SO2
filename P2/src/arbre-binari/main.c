@@ -77,7 +77,7 @@ int main(int argc, char **argv)
                     palabra[j]=tolower(line[inicio+j]);
                 }
                 if(strlen(palabra)!=0){ 
-                    printf("%s\n", palabra);
+                    //printf("%s\n", palabra);
                     /* Search if the key is in the tree */
                     treeData = findNode(tree, palabra); 
 
