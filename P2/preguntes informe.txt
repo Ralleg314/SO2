@@ -1,0 +1,31 @@
+– El codi de la canonada implementat. Comenteu el seu funcionament i com heu aconseguit
+que l’aplicació pdftotext enviï les dades a la sortida estàndard.
+
+pdftotext Archivo.pdf - | ./main
+
+Aquesta comanda es la que farem servir a la terminal a l'hora d'executar el programa.
+pdftotext convertirà el pdf a text pla, que serà captat pel programa fent servir l'entrada standard.
+Un cop dins el main, el programa anirà llegint linea a linea i separarà el text en paraules.
+
+
+– Comenteu cadascun dels camps membres de l’estructura del node de l’arbre. Indiqueu
+quines funcions heu modificat (i com les heu modificat) per tal de permetre que l’arbre
+binari indexi per cadenes de caràcters.
+
+Dins l'arbre, cada node contindrà la següent informacio:
+	- paraula
+	- punter al node dret
+	- punter al node esquerra
+	- punter al node pare (excepte si es l'inicial)
+
+Les funcions modificades han estat les següents:
+	- compLT
+	- compEQ
+
+La resta no han requerit ser modificades, ja que el tipus de la dada queda estipulat al .h a la linia "#define TYPE_RBTREE_KEY char*".
+
+
+– Comenteu quines proves heu fet per assegurar el bon funcionament de l’aplicació. Una
+forma de fer proves es crear fitxers PDF manualment i comprovar que l’aplicació compta
+de forma correcta el nombre de vegades que apareixen algunes de les paraules del text.
+
