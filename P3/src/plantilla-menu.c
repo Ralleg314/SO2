@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "red-black-tree.h"
+
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
 
