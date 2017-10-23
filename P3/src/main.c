@@ -55,6 +55,7 @@ int main(int argc, char **argv)
     int opcio;
     RBTree *tree;
     RBData *treeData;
+    FILE *fp;
 
     tree = (RBTree *) malloc(sizeof(RBTree));
     initTree(tree);
@@ -91,11 +92,21 @@ int main(int argc, char **argv)
 
             case 3:
                 printf("Introdueix nom del fitxer amb l'arbre: ");
+
                 fgets(str, MAXLINE, stdin);
                 str[strlen(str)-1]=0;
 
-                /* Falta codi */
-
+		fp = fopen(str , "r");
+                //longFile = atoi(fgets(str, 100, fp));
+   		/*for(i=0; i<longFile; i++){
+   			fgets(str, MAXLINE, fp);
+   			printf("%s/n", str);
+			//guardamos palabra en el arbol y añadimos a ese nodo el num veces
+   			
+  		}*/
+		//fgets(str, MAXLINE, fp);
+		while (fgets(str, MAXLINE, fp) != NULL)
+			printf("%s\n", str);
                 break;
 
             case 4:
