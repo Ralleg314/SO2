@@ -15,7 +15,6 @@
 
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
-#define SIZE_MAGIC_NUMBER 8
 
 void inserirParaules(RBTree*, RBData*, FILE*);
 void writeTree(RBTree*, FILE *fp);
@@ -91,14 +90,14 @@ int main(int argc, char **argv)
                 fgets(str, MAXLINE, stdin);
                 str[strlen(str)-1]=0;
 
-                fp = fopen(str, "r");
+                fp = fopen(str, "w");
                 
                 if (!fp) {
                   printf("ERROR: no he pogut obrir el fitxer.\n");
                   exit(EXIT_FAILURE);
                 }
 
-                fwrite(&magicNumber, SIZE_MAGIC_NUMBER, 1, fp);
+                fwrite(&magicNumber, sizeof(int), 1, fp);
                 
                 num_vegades = countTreeRecursive(tree->root);
                 fwrite(&num_vegades, sizeof(int), 1, fp);
@@ -133,9 +132,9 @@ int main(int argc, char **argv)
                   exit(EXIT_FAILURE);
                 }
 
-                fread(&magicNumber, SIZE_MAGIC_NUMBER, 1, fp);
+                fread(&magicNumber, sizeof(int), 1, fp);
 
-                if(magicNumber == MAGIC_NUMBER){
+                //if(magicNumber == MAGIC_NUMBER){
 
                     fread(&n, sizeof(int), 1, fp);
                     for (i = 0; i < n; ++i){
@@ -155,7 +154,6 @@ int main(int argc, char **argv)
                       
                       if(treeData!=NULL){
                           treeData->num_vegades += num_vegades;
-                          printf("%s\n", palabra);
                       }else{
                         treeData = malloc(sizeof(RBData));
         
@@ -167,17 +165,15 @@ int main(int argc, char **argv)
 
                         /* We insert the node in the tree */
                         insertNode(tree, treeData);
-                        
-                        printf("%s\n", palabra);
                       }
 
                     }
 
                     fclose(fp);
 
-                }else{
+                /*}else{
                   printf("ERROR: magic number erroni.\n");
-                }
+                }*/
 
                 break;
 
@@ -235,10 +231,12 @@ void inserirParaules(RBTree* tree, RBData* treeData, FILE *fpout){
                     palabra[j]=tolower(line[inicio+j]);
                 }
                 if(strlen(palabra)!=0){ 
-                    //printf("%s\n", palabra);
                     /* Search if the key is in the tree */
                     treeData = findNode(tree, palabra); 
 
+                    char *w = malloc(strlen(palabra)*sizeof(char));
+                    strcpy(w,palabra);
+                    
                     if (treeData != NULL) {
                         /* If the key is in the tree increment 'num' */
                         treeData->num_vegades++;
@@ -250,7 +248,7 @@ void inserirParaules(RBTree* tree, RBData* treeData, FILE *fpout){
                         treeData = malloc(sizeof(RBData));
                         
                         /* This is the key by which the node is indexed in the tree */
-                        treeData->key = palabra;
+                        treeData->key = w;
                         
                         /* This is additional information that is stored in the tree */
                         treeData->num_vegades = 1;
