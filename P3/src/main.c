@@ -55,11 +55,13 @@ int menu()
 
 int main(int argc, char **argv)
 {
-    char str[MAXLINE], *palabra;
-    int opcio, magicNumber, len_str, n, i, num_vegades;
+    char str[MAXLINE], line[MAXLINE], *palabra, *w;
+    int opcio, magicNumber, len_str, n, i, num_vegades, len;
+    int fin, dist, j, inicio = 0;
+    
     RBTree *tree;
     RBData *treeData;
-    FILE *fp;
+    FILE *fp, *fpopen, *fpopen2;
 
     tree = (RBTree *) malloc(sizeof(RBTree));
     initTree(tree);
@@ -78,12 +80,65 @@ int main(int argc, char **argv)
                 printf("Introdueix fitxer que conte llistat fitxers PDF: ");
                 fgets(str, MAXLINE, stdin);
                 str[strlen(str)-1]=0;
+                fpopen2 = fopen(str,"r");
+                while (fgets(line, MAXLINE, fpopen2) != NULL) {
+                    sprintf(line,"pdftotext %s",line);
+                    system(line);
+                    str[strlen(str)-3]='t';
+                    str[strlen(str)-2]='x';
+                    str[strlen(str)-1]='t';
+                    fpopen = fopen(str,"r");
+                    while (fgets(line, MAXLINE, fpopen) != NULL) {
+                        len = strlen(line);
+                        for(i = 0; i < len; i++){
+                            if(!isalpha(line[i]) && !isdigit(line[i])){
+                                fin=i;
+                                dist=fin-inicio;
+                                palabra = (char*)malloc(dist*sizeof(char));
+                                for(j=0;j<dist;j++){
+                                    palabra[j]=tolower(line[inicio+j]);
+                                }
+                                if(strlen(palabra)!=0){ 
+                                    //printf("%s\n", palabra);
+                                    /* Search if the key is in the tree */
+                                    treeData = findNode(tree, palabra); 
+                                    
+                                    w = malloc(strlen(palabra)*sizeof(char));
+                                    strcpy(w,palabra);
 
-                /* Falta codi */
-                deleteTree(tree);
-                free(tree);
+                                    if (treeData != NULL) {
+                                        /* If the key is in the tree increment 'num' */
+                                        treeData->num_vegades++;
+                                    } else{
+
+                                        /* If the key is not in the tree, allocate memory for the data
+                                        * and insert in the tree */
+
+                                        treeData = malloc(sizeof(RBData));
+                                        
+                                        /* This is the key by which the node is indexed in the tree */
+                                        treeData->key = w;
+                                        
+                                        /* This is additional information that is stored in the tree */
+                                        treeData->num_vegades = 1;
+
+                                        /* We insert the node in the tree */
+                                        insertNode(tree, treeData);
+                                    }
+                                }
+                                inicio=i+1;
+                                free(palabra);
+                            }
+                        }
+                        inicio=0;
+                    }
+                    fclose(fpopen);
+                    
+                }
+                fclose(fpopen2);
 
                 break;
+
 
             case 2:
                 printf("Introdueix el nom de fitxer en el qual es desara l'arbre: ");
@@ -151,6 +206,8 @@ int main(int argc, char **argv)
                       fread(&num_vegades, sizeof(int), 1, fp);
                       
                       treeData = findNode(tree, palabra);
+                      w = malloc(strlen(palabra)*sizeof(char));
+                      strcpy(w,palabra);
                       
                       if(treeData!=NULL){
                           treeData->num_vegades += num_vegades;
@@ -158,7 +215,7 @@ int main(int argc, char **argv)
                         treeData = malloc(sizeof(RBData));
         
                         /* This is the key by which the node is indexed in the tree */
-                        treeData->key = palabra;
+                        treeData->key = w;
                         
                         /* This is additional information that is stored in the tree */
                         treeData->num_vegades = num_vegades;
