@@ -53,7 +53,7 @@ static int compLT(TYPE_RBTREE_KEY key1, TYPE_RBTREE_KEY key2)
 
   rc = 0;
 
-  if (strcmp(key1,key2)==1)
+  if (strcmp(key1,key2)<0)
     rc = 1;
 
   return rc;
