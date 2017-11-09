@@ -1,0 +1,16 @@
+Mode de funcionament:
+
+1/ Executar 
+
+   make
+
+   per compilar el codi.
+
+2/ Executar
+
+   make clean
+
+   per esborrar els fitxers generats en compilar.
+
+3/ Editeu el fitxer Makefile per indicar els fitxers
+   que s'han de compilar.
