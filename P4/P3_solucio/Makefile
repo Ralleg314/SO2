@@ -10,7 +10,7 @@ TARGET = main
 CFLAGS = -Wall -Werror -g
 
 # Linker options 
-LFLAGS = -lm
+LFLAGS = -lm -pthread
 
 # There is no need to change the instructions below this
 # line. Change if you really know what you are doing.

@@ -1,6 +1,6 @@
 /**
  *
- * Practica 3 
+ * Practica 4
  *
  */
 
@@ -9,11 +9,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <pthread.h>
 
 #include "red-black-tree.h"
 
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+struct Tree_Thread {
+    RBTree *tree;
+    char** fitxers; 
+};
+
+RBTree *create_tree_thread(void*);
 
 /**
  *
@@ -149,14 +159,19 @@ void process_line(char *line, RBTree *tree)
 
 RBTree *create_tree(char *filename)
 {
-    FILE *fp, *fp_pipe;
+    FILE *fp;
     RBTree *tree;
-
+    pthread_t* threads;                                            ///////////////////////////// CAMBIO
+    struct Tree_Thread* arguments;                                        ///////////////////////////// CAMBIO
+    
     int i, num_pdfs;
-    char line[MAXLINE], command[MAXLINE];
+    char line[MAXLINE];
+    char** fitxers;                                                ///////////////////////////// CAMBIO
+    
 
     /* Allocate memory for tree */
     tree = (RBTree *) malloc(sizeof(RBTree));
+    arguments = malloc(sizeof(struct Tree_Thread));
 
     /* Initialize the tree */
     initTree(tree);
@@ -171,52 +186,115 @@ RBTree *create_tree(char *filename)
     /* Llegim el fitxer. Suposem que el fitxer esta en un format correcte */
     fgets(line, MAXLINE, fp);
     num_pdfs = atoi(line);
-
+    
+    threads = (pthread_t *) malloc(sizeof(pthread_t)*num_pdfs);    ///////////////////////////// CAMBIO
+    fitxers = (char **) malloc(sizeof(char*)*num_pdfs);            ///////////////////////////// CAMBIO
+    
     /* Llegim els noms dels fitxers PDF a processar */
     for(i = 0; i < num_pdfs; i++)
     {
         fgets(line, MAXLINE, fp); 
         line[strlen(line)-1]=0;
-
+        
         /* Can I open the pipe ? */
         if(access(line, R_OK ) == -1) {
             printf("ERROR: no puc obrir fitxer d'entrada %s.\n", line);
             continue;
         }
-
-        printf("Processant fitxer %s\n", line);
-
-        /** This is the command we have to execute. Observe that we have to specify
-         * the parameter "-" in order to indicate that we want to output result to
-         * stdout.  In addition, observe that we need to specify \n at the end of the
-         * command to execute. 
-         */
-
-        sprintf(command, "pdftotext %s -\n", line);
-        fp_pipe = popen(command, "r");
-        if (!fp_pipe)
-        {
-            printf("ERROR: no puc crear canonada per al fitxer %s.\n", line);
-            continue;
-        }
-
-        while (fgets(line, MAXLINE, fp_pipe) != NULL) {
-            /* Remove the \n at the end of the line */
-
-            line[strlen(line) - 1] = 0;
-
-            /* Process the line */
-
-            process_line(line, tree); 
-        }
-
-        pclose(fp_pipe);
+        
+        fitxers[i] = (char *) malloc(sizeof(char)*strlen(line));   ///////////////////////////// CAMBIO
+        strcpy(fitxers[i], line);
     }
-
     fclose(fp);
-
+    
+    arguments->tree = tree;                                      ///////////////////////////// CAMBIO
+    (*arguments).fitxers = fitxers;                                ///////////////////////////// CAMBIO
+    
+    for(i = 0; i < num_pdfs; i++)                                  ///////////////////////////// CAMBIO (TOD0 EL BUCLE)
+    {                                                              ///////////////////////////// CAMBIO
+                                                                   ///////////////////////////// CAMBIO
+        if(pthread_create( &threads[i], NULL, (void*)create_tree_thread, (void*) arguments))/////////// CAMBIO
+        {                                                          ///////////////////////////// CAMBIO
+            fprintf(stderr,"Error - Thread: %d\n",i);              ///////////////////////////// CAMBIO
+            exit(EXIT_FAILURE);                                    ///////////////////////////// CAMBIO
+        }                                                          ///////////////////////////// CAMBIO
+    }                                                              ///////////////////////////// CAMBIO
     return tree;
 }
+
+
+RBTree *create_tree_thread(void* arguments){//////////////////////////// NUEVA FUNCION
+    int i=0;
+
+    FILE *fp_pipe;                                                 ///////////////////////////// CAMBIO
+    char line[MAXLINE], command[MAXLINE];                          ///////////////////////////// CAMBIO
+    RBTree *localtree;                                             ///////////////////////////// CAMBIO
+                                                                   ///////////////////////////// CAMBIO
+    //RBTree *tree = (*arguments).tree;                            ///////////////////////////// CAMBIO
+    char** fitxers = ((struct Tree_Thread*)arguments)->fitxers;    ///////////////////////////// CAMBIO
+                                                                   ///////////////////////////// CAMBIO
+                                                                   ///////////////////////////// CAMBIO
+    /* Allocate memory for local tree */                           ///////////////////////////// CAMBIO
+    localtree = (RBTree *) malloc(sizeof(RBTree));                 ///////////////////////////// CAMBIO
+                                                                   ///////////////////////////// CAMBIO
+    /* Initialize the local tree */                                ///////////////////////////// CAMBIO
+    initTree(localtree);                                           ///////////////////////////// CAMBIO
+    
+    /*
+     * 
+     * Elegir un Archivo no bloquedao y bloquearlo
+     * 
+     */
+    pthread_mutex_lock(&mutex); // lock
+    
+    printf("Processant fitxer %s\n", line);                        ///////////////////////////// CAMBIO
+    
+    /*
+     * This is the command we have to execute. Observe that we have to specify
+     * the parameter "-" in order to indicate that we want to output result to
+     * stdout.  In addition, observe that we need to specify \n at the end of the
+     * command to execute. 
+     */
+    while(fitxers[i]){
+        printf("Fitxers: %s\n", fitxers[3]);
+        sprintf(command, "pdftotext %s -\n", fitxers[i]);                    ///////////////////////////// CAMBIO
+        fp_pipe = popen(command, "r");   
+        if(fp_pipe){
+            printf("PID: %d\n", getpid());
+            break;
+        }else if (!fp_pipe){                                                              ///////////////////////////// CAMBIO
+            printf("ERROR: no puc crear canonada per al fitxer %s.\n", line);/////////////////////// CAMBIO
+        }
+        i++;
+    }                              ///////////////////////////// CAMBIO
+                                                              ///////////////////////////// CAMBIO
+    //Metemos las lineas en el arbol local                         ///////////////////////////// CAMBIO
+    while (fgets(line, MAXLINE, fp_pipe) != NULL) {                ///////////////////////////// CAMBIO
+        /* Remove the \n at the end of the line */                 ///////////////////////////// CAMBIO
+                                                                   ///////////////////////////// CAMBIO
+        line[strlen(line) - 1] = 0;                                ///////////////////////////// CAMBIO
+                                                                   ///////////////////////////// CAMBIO
+        /* Process the line */                                     ///////////////////////////// CAMBIO
+        process_line(line, localtree);                             ///////////////////////////// CAMBIO
+    }                                                              ///////////////////////////// CAMBIO
+    pclose(fp_pipe);                                               ///////////////////////////// CAMBIO
+    
+    
+    /*
+     * 
+     * Desbloquear el Archivo
+     * 
+     * Esperar a que el arbol global este desbloqueado.
+     * 
+     * Bloqueando el acceso al arbol global, meter el arbol local en el arbol global, 
+     * 
+     */
+    pthread_mutex_unlock(&mutex);// unlock
+    
+    return 0;                                                      ///////////////////////////// CAMBIO
+}
+
+
 
 /**
  *
@@ -494,4 +572,22 @@ int main(int argc, char **argv)
 }
 
 
+
+/*
+ * fill principal = menu
+ * 
+ * crear arbre -> principal llegeix l'arxiu i delega la lectura dels arbres a threads que crea
+ *                i s'adorm fins que acabin i mostra menu altra vegada.
+ *                  -Llegeix el llistat de fixers i el guarda en un vector que pasa als fils.
+ *                  -Creacio amb pthread_create i unio/espera amb pthread_join.
+ * 
+ * A cada fil:
+ *              -Cada fil sap quin arbre treballar, compte que dos fills no vulguin treballar el mateix
+ *                 fitxer. Per aixo utilitzem: pthread_mutex_lock i pthread_mutex_unlock.
+ *              -Llegira el pdf en un arbre local exclusiu per cada fill.
+ *              -En llegirles les guardaran a l'arbre global, com han d'accedir varis fils fara falta
+ *                 les funcions: pthread_mutex_lock i pthread_mutex_unlock.
+ *              -En acabar, el fill allibera l'arbre i si n'hi ha altre pdf el llegira, si no finalitza.
+ *              -Informacio necesaria pels fills: Vector de fitxers, punter a l'arbre global, 
+ */
 
