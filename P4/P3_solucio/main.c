@@ -20,7 +20,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct Tree_Thread {
     RBTree *tree;
-    char** fitxers; 
+    char* fitxer; 
 };
 
 RBTree *create_tree_thread(void*);
@@ -208,11 +208,10 @@ RBTree *create_tree(char *filename)
     fclose(fp);
     
     arguments->tree = tree;                                      ///////////////////////////// CAMBIO
-    (*arguments).fitxers = fitxers;                                ///////////////////////////// CAMBIO
     
     for(i = 0; i < num_pdfs; i++)                                  ///////////////////////////// CAMBIO (TOD0 EL BUCLE)
     {                                                              ///////////////////////////// CAMBIO
-                                                                   ///////////////////////////// CAMBIO
+        arguments->fitxer = fitxers[i];                                              ///////////////////////////// CAMBIO
         if(pthread_create( &threads[i], NULL, (void*)create_tree_thread, (void*) arguments))/////////// CAMBIO
         {                                                          ///////////////////////////// CAMBIO
             fprintf(stderr,"Error - Thread: %d\n",i);              ///////////////////////////// CAMBIO
@@ -224,14 +223,13 @@ RBTree *create_tree(char *filename)
 
 
 RBTree *create_tree_thread(void* arguments){//////////////////////////// NUEVA FUNCION
-    int i=0;
 
     FILE *fp_pipe;                                                 ///////////////////////////// CAMBIO
     char line[MAXLINE], command[MAXLINE];                          ///////////////////////////// CAMBIO
     RBTree *localtree;                                             ///////////////////////////// CAMBIO
                                                                    ///////////////////////////// CAMBIO
     //RBTree *tree = (*arguments).tree;                            ///////////////////////////// CAMBIO
-    char** fitxers = ((struct Tree_Thread*)arguments)->fitxers;    ///////////////////////////// CAMBIO
+    char* fitxer = ((struct Tree_Thread*)arguments)->fitxer;    ///////////////////////////// CAMBIO
                                                                    ///////////////////////////// CAMBIO
                                                                    ///////////////////////////// CAMBIO
     /* Allocate memory for local tree */                           ///////////////////////////// CAMBIO
@@ -255,18 +253,14 @@ RBTree *create_tree_thread(void* arguments){//////////////////////////// NUEVA F
      * stdout.  In addition, observe that we need to specify \n at the end of the
      * command to execute. 
      */
-    while(fitxers[i]){
-        printf("Fitxers: %s\n", fitxers[3]);
-        sprintf(command, "pdftotext %s -\n", fitxers[i]);                    ///////////////////////////// CAMBIO
-        fp_pipe = popen(command, "r");   
-        if(fp_pipe){
-            printf("PID: %d\n", getpid());
-            break;
-        }else if (!fp_pipe){                                                              ///////////////////////////// CAMBIO
-            printf("ERROR: no puc crear canonada per al fitxer %s.\n", line);/////////////////////// CAMBIO
-        }
-        i++;
-    }                              ///////////////////////////// CAMBIO
+	printf("Fitxers: %s\n", fitxer);
+	sprintf(command, "pdftotext %s -\n", fitxer);                    ///////////////////////////// CAMBIO
+	fp_pipe = popen(command, "r");   
+	if(fp_pipe){
+	    printf("PID: %d\n", getpid());
+	}else if (!fp_pipe){                                                              ///////////////////////////// CAMBIO
+	    printf("ERROR: no puc crear canonada per al fitxer %s.\n", line);/////////////////////// CAMBIO
+	}                            ///////////////////////////// CAMBIO
                                                               ///////////////////////////// CAMBIO
     //Metemos las lineas en el arbol local                         ///////////////////////////// CAMBIO
     while (fgets(line, MAXLINE, fp_pipe) != NULL) {                ///////////////////////////// CAMBIO
