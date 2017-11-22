@@ -23,7 +23,8 @@ struct Tree_Thread {
     char* fitxer; 
 };
 
-RBTree *create_tree_thread(void*);
+void *create_tree_thread(void*);
+void add_tree_recursive(RBTree*, Node*);
 
 /**
  *
@@ -207,29 +208,32 @@ RBTree *create_tree(char *filename)
     }
     fclose(fp);
     
-    arguments->tree = tree;                                      ///////////////////////////// CAMBIO
+    arguments->tree = tree;                                        ///////////////////////////// CAMBIO
     
     for(i = 0; i < num_pdfs; i++)                                  ///////////////////////////// CAMBIO (TOD0 EL BUCLE)
     {                                                              ///////////////////////////// CAMBIO
-        arguments->fitxer = fitxers[i];                                              ///////////////////////////// CAMBIO
+        arguments->fitxer = fitxers[i];                            ///////////////////////////// CAMBIO
         if(pthread_create( &threads[i], NULL, (void*)create_tree_thread, (void*) arguments))/////////// CAMBIO
         {                                                          ///////////////////////////// CAMBIO
             fprintf(stderr,"Error - Thread: %d\n",i);              ///////////////////////////// CAMBIO
             exit(EXIT_FAILURE);                                    ///////////////////////////// CAMBIO
         }                                                          ///////////////////////////// CAMBIO
-    }                                                              ///////////////////////////// CAMBIO
+    }
+    for(i=0; i < num_pdfs;i++){
+        pthread_join(threads[i], NULL);
+    }
     return tree;
 }
 
 
-RBTree *create_tree_thread(void* arguments){//////////////////////////// NUEVA FUNCION
+void *create_tree_thread(void* arguments){//////////////////////////// NUEVA FUNCION
 
     FILE *fp_pipe;                                                 ///////////////////////////// CAMBIO
     char line[MAXLINE], command[MAXLINE];                          ///////////////////////////// CAMBIO
     RBTree *localtree;                                             ///////////////////////////// CAMBIO
                                                                    ///////////////////////////// CAMBIO
-    //RBTree *tree = (*arguments).tree;                            ///////////////////////////// CAMBIO
-    char* fitxer = ((struct Tree_Thread*)arguments)->fitxer;    ///////////////////////////// CAMBIO
+    RBTree *tree = ((struct Tree_Thread*)arguments)->tree;                            ///////////////////////////// CAMBIO
+    char* fitxer = ((struct Tree_Thread*)arguments)->fitxer;       ///////////////////////////// CAMBIO
                                                                    ///////////////////////////// CAMBIO
                                                                    ///////////////////////////// CAMBIO
     /* Allocate memory for local tree */                           ///////////////////////////// CAMBIO
@@ -270,6 +274,7 @@ RBTree *create_tree_thread(void* arguments){//////////////////////////// NUEVA F
                                                                    ///////////////////////////// CAMBIO
         /* Process the line */                                     ///////////////////////////// CAMBIO
         process_line(line, localtree);                             ///////////////////////////// CAMBIO
+        
     }                                                              ///////////////////////////// CAMBIO
     pclose(fp_pipe);                                               ///////////////////////////// CAMBIO
     
@@ -285,7 +290,26 @@ RBTree *create_tree_thread(void* arguments){//////////////////////////// NUEVA F
      */
     pthread_mutex_unlock(&mutex);// unlock
     
-    return 0;                                                      ///////////////////////////// CAMBIO
+    add_tree_recursive(tree, localtree->root);
+    
+    return ((void *)0);                                                      ///////////////////////////// CAMBIO
+}
+
+void add_tree_recursive(RBTree *tree, Node *local){
+
+    if (local->right != NIL)
+        add_tree_recursive(tree, local->right);
+
+    if (local->left != NIL)
+        add_tree_recursive(tree, local->left);
+    
+    RBData *temp=findNode(tree, local->data->key);
+    
+    if(temp){
+        temp->num_vegades+=local->data->num_vegades;
+    }else{
+        insertNode(tree, temp);
+    }
 }
 
 
