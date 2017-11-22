@@ -163,7 +163,7 @@ RBTree *create_tree(char *filename)
     FILE *fp;
     RBTree *tree;
     pthread_t* threads;                                            ///////////////////////////// CAMBIO
-    struct Tree_Thread* arguments;                                        ///////////////////////////// CAMBIO
+    struct Tree_Thread** arguments;                                        ///////////////////////////// CAMBIO
     
     int i, num_pdfs;
     char line[MAXLINE];
@@ -172,7 +172,6 @@ RBTree *create_tree(char *filename)
 
     /* Allocate memory for tree */
     tree = (RBTree *) malloc(sizeof(RBTree));
-    arguments = malloc(sizeof(struct Tree_Thread));
 
     /* Initialize the tree */
     initTree(tree);
@@ -190,6 +189,12 @@ RBTree *create_tree(char *filename)
     
     threads = (pthread_t *) malloc(sizeof(pthread_t)*num_pdfs);    ///////////////////////////// CAMBIO
     fitxers = (char **) malloc(sizeof(char*)*num_pdfs);            ///////////////////////////// CAMBIO
+        
+    arguments = malloc(num_pdfs*sizeof(struct Tree_Thread*));
+    for(i=0; i < num_pdfs; i++){
+        arguments[i] = malloc(sizeof(struct Tree_Thread));
+    }
+        
     
     /* Llegim els noms dels fitxers PDF a processar */
     for(i = 0; i < num_pdfs; i++)
@@ -206,22 +211,28 @@ RBTree *create_tree(char *filename)
         fitxers[i] = (char *) malloc(sizeof(char)*strlen(line));   ///////////////////////////// CAMBIO
         strcpy(fitxers[i], line);
     }
-    fclose(fp);
-    
-    arguments->tree = tree;                                        ///////////////////////////// CAMBIO
+    fclose(fp);                                        ///////////////////////////// CAMBIO
     
     for(i = 0; i < num_pdfs; i++)                                  ///////////////////////////// CAMBIO (TOD0 EL BUCLE)
     {                                                              ///////////////////////////// CAMBIO
-        arguments->fitxer = fitxers[i];                            ///////////////////////////// CAMBIO
-        if(pthread_create( &threads[i], NULL, (void*)create_tree_thread, (void*) arguments))/////////// CAMBIO
+        arguments[i]->fitxer = fitxers[i];
+        arguments[i]->tree = tree;
+        if(pthread_create( &threads[i], NULL, (void*)create_tree_thread, (void*) arguments[i]))/////////// CAMBIO
         {                                                          ///////////////////////////// CAMBIO
             fprintf(stderr,"Error - Thread: %d\n",i);              ///////////////////////////// CAMBIO
             exit(EXIT_FAILURE);                                    ///////////////////////////// CAMBIO
         }                                                          ///////////////////////////// CAMBIO
     }
+    
     for(i=0; i < num_pdfs;i++){
         pthread_join(threads[i], NULL);
     }
+    
+    for(i=0; i < num_pdfs; i++){
+        free(arguments[i]);
+    }
+    free(arguments);
+    
     return tree;
 }
 
@@ -247,9 +258,6 @@ void *create_tree_thread(void* arguments){//////////////////////////// NUEVA FUN
      * Elegir un Archivo no bloquedao y bloquearlo
      * 
      */
-    pthread_mutex_lock(&mutex); // lock
-    
-    printf("Processant fitxer %s\n", line);                        ///////////////////////////// CAMBIO
     
     /*
      * This is the command we have to execute. Observe that we have to specify
@@ -261,7 +269,7 @@ void *create_tree_thread(void* arguments){//////////////////////////// NUEVA FUN
 	sprintf(command, "pdftotext %s -\n", fitxer);                    ///////////////////////////// CAMBIO
 	fp_pipe = popen(command, "r");   
 	if(fp_pipe){
-	    printf("PID: %d\n", getpid());
+	    printf("PID: %ld\n", pthread_self());
 	}else if (!fp_pipe){                                                              ///////////////////////////// CAMBIO
 	    printf("ERROR: no puc crear canonada per al fitxer %s.\n", line);/////////////////////// CAMBIO
 	}                            ///////////////////////////// CAMBIO
@@ -285,30 +293,44 @@ void *create_tree_thread(void* arguments){//////////////////////////// NUEVA FUN
      * 
      * Esperar a que el arbol global este desbloqueado.
      * 
-     * Bloqueando el acceso al arbol global, meter el arbol local en el arbol global, 
+     * Bloqueando el acceso al arbol global, meter el arbol local en el arbol global,
      * 
      */
-    pthread_mutex_unlock(&mutex);// unlock
+    pthread_mutex_lock(&mutex); // lock
     
     add_tree_recursive(tree, localtree->root);
+    
+    pthread_mutex_unlock(&mutex);// unlock
     
     return ((void *)0);                                                      ///////////////////////////// CAMBIO
 }
 
 void add_tree_recursive(RBTree *tree, Node *local){
 
-    if (local->right != NIL)
-        add_tree_recursive(tree, local->right);
+    if(local){
+        char *paraula_copy;
+        int len_word = strlen(local->data->key);
+        if (local->right != NIL)
+            add_tree_recursive(tree, local->right);
 
-    if (local->left != NIL)
-        add_tree_recursive(tree, local->left);
-    
-    RBData *temp=findNode(tree, local->data->key);
-    
-    if(temp){
-        temp->num_vegades+=local->data->num_vegades;
-    }else{
-        insertNode(tree, temp);
+        if (local->left != NIL)
+            add_tree_recursive(tree, local->left);
+        
+        RBData *temp=findNode(tree, local->data->key);
+        
+        if(temp){
+            temp->num_vegades+=local->data->num_vegades;
+        }else{
+            paraula_copy = malloc(sizeof(char) * (len_word+1));
+
+            strcpy(paraula_copy, local->data->key);
+
+            temp = malloc(sizeof(RBData));
+            temp->key = paraula_copy;
+            temp->num_vegades = 1;
+
+            insertNode(tree, temp);
+        }
     }
 }
 
