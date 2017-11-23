@@ -162,12 +162,12 @@ RBTree *create_tree(char *filename)
 {
     FILE *fp;
     RBTree *tree;
-    pthread_t* threads;                                            ///////////////////////////// CAMBIO
-    struct Tree_Thread** arguments;                                        ///////////////////////////// CAMBIO
+    pthread_t* threads;                                            
+    struct Tree_Thread** arguments;                                        
     
     int i, num_pdfs;
     char line[MAXLINE];
-    char** fitxers;                                                ///////////////////////////// CAMBIO
+    char** fitxers;                                                
     
 
     /* Allocate memory for tree */
@@ -187,8 +187,8 @@ RBTree *create_tree(char *filename)
     fgets(line, MAXLINE, fp);
     num_pdfs = atoi(line);
     
-    threads = (pthread_t *) malloc(sizeof(pthread_t)*num_pdfs);    ///////////////////////////// CAMBIO
-    fitxers = (char **) malloc(sizeof(char*)*num_pdfs);            ///////////////////////////// CAMBIO
+    threads = (pthread_t *) malloc(sizeof(pthread_t)*num_pdfs);    
+    fitxers = (char **) malloc(sizeof(char*)*num_pdfs);            
         
     arguments = malloc(num_pdfs*sizeof(struct Tree_Thread*));
     for(i=0; i < num_pdfs; i++){
@@ -208,26 +208,30 @@ RBTree *create_tree(char *filename)
             continue;
         }
         
-        fitxers[i] = (char *) malloc(sizeof(char)*strlen(line));   ///////////////////////////// CAMBIO
+        fitxers[i] = (char *) malloc(sizeof(char)*strlen(line));   
         strcpy(fitxers[i], line);
     }
-    fclose(fp);                                        ///////////////////////////// CAMBIO
+    fclose(fp);                                        
     
-    for(i = 0; i < num_pdfs; i++)                                  ///////////////////////////// CAMBIO (TOD0 EL BUCLE)
-    {                                                              ///////////////////////////// CAMBIO
+	//for each file, create a thread
+	//we can do this because the set of files is relatively small, so we thought it would be faster that way
+    for(i = 0; i < num_pdfs; i++)                                   
+    {                                                              
         arguments[i]->fitxer = fitxers[i];
         arguments[i]->tree = tree;
         if(pthread_create( &threads[i], NULL, (void*)create_tree_thread, (void*) arguments[i]))/////////// CAMBIO
-        {                                                          ///////////////////////////// CAMBIO
-            fprintf(stderr,"Error - Thread: %d\n",i);              ///////////////////////////// CAMBIO
-            exit(EXIT_FAILURE);                                    ///////////////////////////// CAMBIO
-        }                                                          ///////////////////////////// CAMBIO
+        {                                                          
+            fprintf(stderr,"Error - Thread: %d\n",i);              
+            exit(EXIT_FAILURE);                                    
+        }                                                          
     }
     
+	//Once all the threads have finished, we join them
     for(i=0; i < num_pdfs;i++){
         pthread_join(threads[i], NULL);
     }
     
+	//The memory used to save all names and the tree has to be freed
     for(i=0; i < num_pdfs; i++){
         free(arguments[i]);
     }
@@ -237,21 +241,21 @@ RBTree *create_tree(char *filename)
 }
 
 
-void *create_tree_thread(void* arguments){//////////////////////////// NUEVA FUNCION
+void *create_tree_thread(void* arguments){
 
-    FILE *fp_pipe;                                                 ///////////////////////////// CAMBIO
-    char line[MAXLINE], command[MAXLINE];                          ///////////////////////////// CAMBIO
-    RBTree *localtree;                                             ///////////////////////////// CAMBIO
-                                                                   ///////////////////////////// CAMBIO
-    RBTree *tree = ((struct Tree_Thread*)arguments)->tree;                            ///////////////////////////// CAMBIO
-    char* fitxer = ((struct Tree_Thread*)arguments)->fitxer;       ///////////////////////////// CAMBIO
-                                                                   ///////////////////////////// CAMBIO
-                                                                   ///////////////////////////// CAMBIO
-    /* Allocate memory for local tree */                           ///////////////////////////// CAMBIO
-    localtree = (RBTree *) malloc(sizeof(RBTree));                 ///////////////////////////// CAMBIO
-                                                                   ///////////////////////////// CAMBIO
-    /* Initialize the local tree */                                ///////////////////////////// CAMBIO
-    initTree(localtree);                                           ///////////////////////////// CAMBIO
+    FILE *fp_pipe;                                                 
+    char line[MAXLINE], command[MAXLINE];                          
+    RBTree *localtree;                                             
+                                                                   
+    RBTree *tree = ((struct Tree_Thread*)arguments)->tree;                            
+    char* fitxer = ((struct Tree_Thread*)arguments)->fitxer;       
+                                                                   
+                                                                   
+    /* Allocate memory for local tree */                           
+    localtree = (RBTree *) malloc(sizeof(RBTree));                 
+                                                                   
+    /* Initialize the local tree */                                
+    initTree(localtree);                                           
     
     /*
      * 
@@ -266,25 +270,25 @@ void *create_tree_thread(void* arguments){//////////////////////////// NUEVA FUN
      * command to execute. 
      */
 	printf("Fitxers: %s\n", fitxer);
-	sprintf(command, "pdftotext %s -\n", fitxer);                    ///////////////////////////// CAMBIO
+	sprintf(command, "pdftotext %s -\n", fitxer);                    
 	fp_pipe = popen(command, "r");   
 	if(fp_pipe){
 	    printf("PID: %ld\n", pthread_self());
-	}else if (!fp_pipe){                                                              ///////////////////////////// CAMBIO
-	    printf("ERROR: no puc crear canonada per al fitxer %s.\n", line);/////////////////////// CAMBIO
-	}                            ///////////////////////////// CAMBIO
-                                                              ///////////////////////////// CAMBIO
-    //Metemos las lineas en el arbol local                         ///////////////////////////// CAMBIO
-    while (fgets(line, MAXLINE, fp_pipe) != NULL) {                ///////////////////////////// CAMBIO
-        /* Remove the \n at the end of the line */                 ///////////////////////////// CAMBIO
-                                                                   ///////////////////////////// CAMBIO
-        line[strlen(line) - 1] = 0;                                ///////////////////////////// CAMBIO
-                                                                   ///////////////////////////// CAMBIO
-        /* Process the line */                                     ///////////////////////////// CAMBIO
-        process_line(line, localtree);                             ///////////////////////////// CAMBIO
+	}else if (!fp_pipe){                                                              
+	    printf("ERROR: no puc crear canonada per al fitxer %s.\n", line);
+	}                            
+                                                              
+    //Metemos las lineas en el arbol local                         
+    while (fgets(line, MAXLINE, fp_pipe) != NULL) {                
+        /* Remove the \n at the end of the line */                 
+                                                                   
+        line[strlen(line) - 1] = 0;                                
+                                                                   
+        /* Process the line */                                     
+        process_line(line, localtree);                             
         
-    }                                                              ///////////////////////////// CAMBIO
-    pclose(fp_pipe);                                               ///////////////////////////// CAMBIO
+    }                                                              
+    pclose(fp_pipe);                                               
     
     
     /*
@@ -302,7 +306,7 @@ void *create_tree_thread(void* arguments){//////////////////////////// NUEVA FUN
     
     pthread_mutex_unlock(&mutex);// unlock
     
-    return ((void *)0);                                                      ///////////////////////////// CAMBIO
+    return ((void *)0);                                                      
 }
 
 void add_tree_recursive(RBTree *tree, Node *local){
