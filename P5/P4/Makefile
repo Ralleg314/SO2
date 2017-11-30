@@ -7,10 +7,10 @@ FILES_C = main.c red-black-tree.c
 TARGET = main
 
 # Compilation options
-CFLAGS = -Wall -Werror -g
+CFLAGS = -Wall -Werror -O
 
 # Linker options 
-LFLAGS = -lm -pthread
+LFLAGS = -lm -lpthread
 
 # There is no need to change the instructions below this
 # line. Change if you really know what you are doing.

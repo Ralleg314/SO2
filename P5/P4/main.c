@@ -13,18 +13,27 @@
 
 #include "red-black-tree.h"
 
+#define NUM_THREADS  4 
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+int num_thread;  // Just for debugging purposes
+pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
-struct Tree_Thread {
-    RBTree *tree;
-    char* fitxer; 
+/**
+ * 
+ *  This structure holds the information that has to be passed
+ *  to the secondary threads.
+ *
+ */
+
+struct info_threads {
+    RBTree *tree_global;
+    int index;   // common counter for all the threads
+    int num_pdfs;
+    char **filename_pdfs;
 };
-
-void *create_tree_thread(void*);
-void add_tree_recursive(RBTree*, Node*);
 
 /**
  *
@@ -60,6 +69,44 @@ int count_nodes(RBTree *tree)
     return nodes;
 } 
 
+/**
+ *
+ *  Insert word in a tree. This is the function is the same for both 
+ *  local and global structures. Blocking functions are used outside
+ *  this function. It may not be the optimum solution.
+ *
+ */
+
+void insert_word_tree(RBTree *tree, char *paraula, int num_vegades)
+{
+    RBData *tree_data;
+    char *paraula_copy;
+
+    /* Search the work in the tree */
+    tree_data = findNode(tree, paraula);
+
+    if (tree_data != NULL) {
+        //printf("Incremento comptador %s a l'arbre\n", paraula);
+
+        /* We increment the number of times current item has appeared */
+        tree_data->num_vegades += num_vegades;
+
+    } else {
+        //printf("Insereixo %s a l'arbre\n", paraula);
+
+        /* If the key is not in the list, allocate memory for the data and
+         * insert it in the list */
+
+        paraula_copy = malloc(sizeof(char) * (strlen(paraula)+1));
+        strcpy(paraula_copy, paraula);
+
+        tree_data = malloc(sizeof(RBData));
+        tree_data->key = paraula_copy;
+        tree_data->num_vegades = num_vegades;
+
+        insertNode(tree, tree_data);
+    }
+}
 
 /**
  *
@@ -70,10 +117,9 @@ int count_nodes(RBTree *tree)
 
 void process_line(char *line, RBTree *tree)
 {
-    RBData *tree_data;
 
     int i, j, is_word, len_word, len_line;
-    char paraula[MAXLINE], *paraula_copy;
+    char paraula[MAXLINE];
 
     i = 0;
 
@@ -118,30 +164,8 @@ void process_line(char *line, RBTree *tree)
             for(j = 0; j < len_word; j++)
                 paraula[j] = tolower(paraula[j]);
 
-            /* Search the work in the tree */
-            tree_data = findNode(tree, paraula);
+            insert_word_tree(tree, paraula, 1); 
 
-            if (tree_data != NULL) {
-                //printf("Incremento comptador %s a l'arbre\n", paraula);
-
-                /* We increment the number of times current item has appeared */
-                tree_data->num_vegades++;
-
-            } else {
-                //printf("Insereixo %s a l'arbre\n", paraula);
-
-                /* If the key is not in the list, allocate memory for the data and
-                 * insert it in the list */
-
-                paraula_copy = malloc(sizeof(char) * (len_word+1));
-                strcpy(paraula_copy, paraula);
-
-                tree_data = malloc(sizeof(RBData));
-                tree_data->key = paraula_copy;
-                tree_data->num_vegades = 1;
-
-                insertNode(tree, tree_data);
-            }
         } /* if is_word */
 
         /* Search for the beginning of a candidate word */
@@ -153,22 +177,142 @@ void process_line(char *line, RBTree *tree)
 
 /**
  *
- *  Create the tree. This function reads the file filename and opens the pipe with pdftotext and calls process_line
- *  for each line that is received from it.
+ *  Copy local to global tree 
+ *
+ */
+
+void tree_copy_local2global_recursive(Node *x, RBTree *tree_global)
+{
+    if (x->right != NIL)
+        tree_copy_local2global_recursive(x->right, tree_global);
+
+    if (x->left != NIL)
+        tree_copy_local2global_recursive(x->left, tree_global);
+
+    /* This lock/unlock solution is not the best, but we put them here
+     * to simplify the code
+     */
+
+    pthread_mutex_lock(&mutex2);
+    insert_word_tree(tree_global, x->data->key, x->data->num_vegades);
+    pthread_mutex_unlock(&mutex2);
+}
+
+
+void tree_copy_local2global(RBTree *tree_local, RBTree *tree_global)
+{
+    tree_copy_local2global_recursive(tree_local->root, tree_global);
+}
+
+/**
+ *
+ *  Create the tree. This is the secondary thread. It uses a local tree to
+ *  store data while the PDFs a processed. At the end of each iteration, the
+ *  information stored in the local tree is copied to the global tree. 
+ *
+ */
+
+void *create_tree_thread(void *arg)
+{
+    FILE *fp_pipe; 
+    struct info_threads *info;
+
+    char line[MAXLINE], command[MAXLINE], *filename;
+    int thread_id, finished;
+    RBTree *tree_local;  /* This is the local tree!!! */
+
+    info = (struct info_threads *) arg;
+
+    /* Each thread received its own ID */
+    pthread_mutex_lock(&mutex1);
+    thread_id = num_thread;
+    num_thread++;
+    pthread_mutex_unlock(&mutex1);
+
+    /* Allocate memory for local tree */
+    tree_local = (RBTree *) malloc(sizeof(RBTree));
+
+    /* Initialize the tree */
+    initTree(tree_local);
+
+    /* Observe that finished is a local variable, not a global one */
+    finished = 0;
+    while (!finished)
+    {
+        pthread_mutex_lock(&mutex1);
+        if (info->index < info->num_pdfs) {
+            filename = &(info->filename_pdfs[info->index][0]);
+            info->index++;
+        }
+        else
+            finished = 1;
+        pthread_mutex_unlock(&mutex1);
+
+        if (finished)  /* Jump to the while if finished */
+          continue;  
+
+        printf("Fil %d, processant fitxer %s\n", thread_id, filename);
+
+        /** This is the command we have to execute. Observe that we have to specify
+         * the parameter "-" in order to indicate that we want to output result to
+         * stdout.  In addition, observe that we need to specify \n at the end of the
+         * command to execute. 
+         */
+
+        sprintf(command, "pdftotext %s -\n", filename);
+        fp_pipe = popen(command, "r");
+        if (!fp_pipe)
+        {
+            printf("ERROR: no puc crear canonada per al fitxer %s.\n", line);
+            continue;
+        }
+
+        while (fgets(line, MAXLINE, fp_pipe) != NULL) {
+            /* Remove the \n at the end of the line */
+
+            line[strlen(line) - 1] = 0;
+
+            /* Process the line */
+
+            process_line(line, tree_local); 
+        }
+
+        pclose(fp_pipe);
+
+        /* Copy all data from local tree to global tree */
+
+        tree_copy_local2global(tree_local, info->tree_global);
+
+        /* Delete tree */
+
+        deleteTree(tree_local);
+
+        /* Initialize the tree */
+        initTree(tree_local);
+    }
+
+    free(tree_local);
+
+    return NULL;
+}
+
+/**
+ *
+ *  Create the tree. This function reads the PDF files to process and creates
+ *  the threads. 
  *
  */
 
 RBTree *create_tree(char *filename)
 {
+    struct info_threads info;
+    pthread_t ntid[NUM_THREADS];
+
     FILE *fp;
     RBTree *tree;
-    pthread_t* threads;                                            
-    struct Tree_Thread** arguments;                                        
-    
+
     int i, num_pdfs;
-    char line[MAXLINE];
-    char** fitxers;                                                
-    
+    char line[MAXLINE], **filename_pdfs;
 
     /* Allocate memory for tree */
     tree = (RBTree *) malloc(sizeof(RBTree));
@@ -186,159 +330,54 @@ RBTree *create_tree(char *filename)
     /* Llegim el fitxer. Suposem que el fitxer esta en un format correcte */
     fgets(line, MAXLINE, fp);
     num_pdfs = atoi(line);
-    
-    threads = (pthread_t *) malloc(sizeof(pthread_t)*num_pdfs);    
-    fitxers = (char **) malloc(sizeof(char*)*num_pdfs);            
-        
-    arguments = malloc(num_pdfs*sizeof(struct Tree_Thread*));
-    for(i=0; i < num_pdfs; i++){
-        arguments[i] = malloc(sizeof(struct Tree_Thread));
-    }
-        
-    
+    filename_pdfs = (char **) malloc(sizeof(char *) * num_pdfs); 
+
     /* Llegim els noms dels fitxers PDF a processar */
     for(i = 0; i < num_pdfs; i++)
     {
         fgets(line, MAXLINE, fp); 
         line[strlen(line)-1]=0;
-        
-        /* Can I open the pipe ? */
+
+        /* Be sure we can acces the file */
         if(access(line, R_OK ) == -1) {
             printf("ERROR: no puc obrir fitxer d'entrada %s.\n", line);
             continue;
         }
-        
-        fitxers[i] = (char *) malloc(sizeof(char)*strlen(line));   
-        strcpy(fitxers[i], line);
+
+        filename_pdfs[i] = (char *) malloc(sizeof(char) * (strlen(line) + 1));
+        strcpy(filename_pdfs[i], line);
     }
-    fclose(fp);                                        
+
+    fclose(fp);
+
+    /* This is the information that has to be passed to the secondary threads */ 
+
+    info.tree_global = tree;
+    info.index = 0;
+    info.num_pdfs = num_pdfs;
+    info.filename_pdfs = filename_pdfs;
+
+    /* Create threads */
+
+    num_thread = 1;
+
+    for(i = 0; i < NUM_THREADS; i++)
+        pthread_create(&ntid[i], NULL, create_tree_thread, &info);
+
+    /* Wait for threads to finish */
+
+    for(i = 0; i < NUM_THREADS; i++)
+        pthread_join(ntid[i], NULL);
+
+    /* Free dynamic memory */
+
+    for(i = 0; i < num_pdfs; i++)
+       free(filename_pdfs[i]);
     
-	//for each file, create a thread
-	//we can do this because the set of files is relatively small, so we thought it would be faster that way
-    for(i = 0; i < num_pdfs; i++)                                   
-    {                                                              
-        arguments[i]->fitxer = fitxers[i];
-        arguments[i]->tree = tree;
-        if(pthread_create( &threads[i], NULL, (void*)create_tree_thread, (void*) arguments[i]))/////////// CAMBIO
-        {                                                          
-            fprintf(stderr,"Error - Thread: %d\n",i);              
-            exit(EXIT_FAILURE);                                    
-        }                                                          
-    }
-    
-	//Once all the threads have finished, we join them
-    for(i=0; i < num_pdfs;i++){
-        pthread_join(threads[i], NULL);
-    }
-    
-	//The memory used to save all names and the tree has to be freed
-    for(i=0; i < num_pdfs; i++){
-        free(arguments[i]);
-    }
-    free(arguments);
-    
+    free(filename_pdfs); 
+
     return tree;
 }
-
-
-void *create_tree_thread(void* arguments){
-
-    FILE *fp_pipe;                                                 
-    char line[MAXLINE], command[MAXLINE];                          
-    RBTree *localtree;                                             
-                                                                   
-    RBTree *tree = ((struct Tree_Thread*)arguments)->tree;                            
-    char* fitxer = ((struct Tree_Thread*)arguments)->fitxer;       
-                                                                   
-                                                                   
-    /* Allocate memory for local tree */                           
-    localtree = (RBTree *) malloc(sizeof(RBTree));                 
-                                                                   
-    /* Initialize the local tree */                                
-    initTree(localtree);                                           
-    
-    /*
-     * 
-     * Elegir un Archivo no bloquedao y bloquearlo
-     * 
-     */
-    
-    /*
-     * This is the command we have to execute. Observe that we have to specify
-     * the parameter "-" in order to indicate that we want to output result to
-     * stdout.  In addition, observe that we need to specify \n at the end of the
-     * command to execute. 
-     */
-	printf("Fitxers: %s\n", fitxer);
-	sprintf(command, "pdftotext %s -\n", fitxer);                    
-	fp_pipe = popen(command, "r");   
-	if(fp_pipe){
-	    printf("PID: %ld\n", pthread_self());
-	}else if (!fp_pipe){                                                              
-	    printf("ERROR: no puc crear canonada per al fitxer %s.\n", line);
-	}                            
-                                                              
-    //Metemos las lineas en el arbol local                         
-    while (fgets(line, MAXLINE, fp_pipe) != NULL) {                
-        /* Remove the \n at the end of the line */                 
-                                                                   
-        line[strlen(line) - 1] = 0;                                
-                                                                   
-        /* Process the line */                                     
-        process_line(line, localtree);                             
-        
-    }                                                              
-    pclose(fp_pipe);                                               
-    
-    
-    /*
-     * 
-     * Desbloquear el Archivo
-     * 
-     * Esperar a que el arbol global este desbloqueado.
-     * 
-     * Bloqueando el acceso al arbol global, meter el arbol local en el arbol global,
-     * 
-     */
-    pthread_mutex_lock(&mutex); // lock
-    
-    add_tree_recursive(tree, localtree->root);
-    
-    pthread_mutex_unlock(&mutex);// unlock
-    
-    return ((void *)0);                                                      
-}
-
-void add_tree_recursive(RBTree *tree, Node *local){
-
-    if(local){
-        char *paraula_copy;
-        int len_word = strlen(local->data->key);
-        if (local->right != NIL)
-            add_tree_recursive(tree, local->right);
-
-        if (local->left != NIL)
-            add_tree_recursive(tree, local->left);
-        
-        RBData *temp=findNode(tree, local->data->key);
-        
-        if(temp){
-            temp->num_vegades+=local->data->num_vegades;
-        }else{
-            paraula_copy = malloc(sizeof(char) * (len_word+1));
-
-            strcpy(paraula_copy, local->data->key);
-
-            temp = malloc(sizeof(RBData));
-            temp->key = paraula_copy;
-            temp->num_vegades = 1;
-
-            insertNode(tree, temp);
-        }
-    }
-}
-
-
 
 /**
  *
@@ -616,22 +655,4 @@ int main(int argc, char **argv)
 }
 
 
-
-/*
- * fill principal = menu
- * 
- * crear arbre -> principal llegeix l'arxiu i delega la lectura dels arbres a threads que crea
- *                i s'adorm fins que acabin i mostra menu altra vegada.
- *                  -Llegeix el llistat de fixers i el guarda en un vector que pasa als fils.
- *                  -Creacio amb pthread_create i unio/espera amb pthread_join.
- * 
- * A cada fil:
- *              -Cada fil sap quin arbre treballar, compte que dos fills no vulguin treballar el mateix
- *                 fitxer. Per aixo utilitzem: pthread_mutex_lock i pthread_mutex_unlock.
- *              -Llegira el pdf en un arbre local exclusiu per cada fill.
- *              -En llegirles les guardaran a l'arbre global, com han d'accedir varis fils fara falta
- *                 les funcions: pthread_mutex_lock i pthread_mutex_unlock.
- *              -En acabar, el fill allibera l'arbre i si n'hi ha altre pdf el llegira, si no finalitza.
- *              -Informacio necesaria pels fills: Vector de fitxers, punter a l'arbre global, 
- */
 
