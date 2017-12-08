@@ -14,12 +14,19 @@
 #include "red-black-tree.h"
 
 #define NUM_THREADS  4 
+#define N 2000
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
 
 int num_thread;  // Just for debugging purposes
-pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_t prod, cons[NUM_THREADS];
+pthread_cond_t cond_cons, cond_prod;
+int cont = 0;
+int w = 0;
+int r = 0;
+int finished = 0;
+
 
 /**
  * 
@@ -34,6 +41,13 @@ struct info_threads {
     int num_pdfs;
     char **filename_pdfs;
 };
+
+struct parameters{
+    char items[N][MAXLINE];
+    int size;
+};
+
+struct parameters *buffer[NUM_THREADS];
 
 /**
  *
@@ -193,9 +207,9 @@ void tree_copy_local2global_recursive(Node *x, RBTree *tree_global)
      * to simplify the code
      */
 
-    pthread_mutex_lock(&mutex2);
+    pthread_mutex_lock(&mutex);
     insert_word_tree(tree_global, x->data->key, x->data->num_vegades);
-    pthread_mutex_unlock(&mutex2);
+    pthread_mutex_unlock(&mutex);
 }
 
 
@@ -204,49 +218,38 @@ void tree_copy_local2global(RBTree *tree_local, RBTree *tree_global)
     tree_copy_local2global_recursive(tree_local->root, tree_global);
 }
 
-/**
- *
- *  Create the tree. This is the secondary thread. It uses a local tree to
- *  store data while the PDFs a processed. At the end of each iteration, the
- *  information stored in the local tree is copied to the global tree. 
- *
- */
 
-void *create_tree_thread(void *arg)
-{
+void *producer(void *arg){
     FILE *fp_pipe; 
     struct info_threads *info;
 
-    char line[MAXLINE], command[MAXLINE], *filename;
-    int thread_id, finished;
-    RBTree *tree_local;  /* This is the local tree!!! */
+    char lines[N][MAXLINE], command[MAXLINE], *filename;
+    int thread_id,  i=0, j;
+    
 
     info = (struct info_threads *) arg;
 
     /* Each thread received its own ID */
-    pthread_mutex_lock(&mutex1);
+    pthread_mutex_lock(&mutex);
     thread_id = num_thread;
     num_thread++;
-    pthread_mutex_unlock(&mutex1);
+    pthread_mutex_unlock(&mutex);
 
-    /* Allocate memory for local tree */
-    tree_local = (RBTree *) malloc(sizeof(RBTree));
-
-    /* Initialize the tree */
-    initTree(tree_local);
-
-    /* Observe that finished is a local variable, not a global one */
-    finished = 0;
     while (!finished)
     {
-        pthread_mutex_lock(&mutex1);
+	while(cont == NUM_THREADS){
+      	    pthread_cond_wait(&cond_prod, &mutex);
+    	}
+        pthread_mutex_lock(&mutex);
         if (info->index < info->num_pdfs) {
             filename = &(info->filename_pdfs[info->index][0]);
             info->index++;
         }
-        else
+        else{
             finished = 1;
-        pthread_mutex_unlock(&mutex1);
+	    filename = "."; //filename may be uninitialized
+	}
+        pthread_mutex_unlock(&mutex);
 
         if (finished)  /* Jump to the while if finished */
           continue;  
@@ -263,21 +266,73 @@ void *create_tree_thread(void *arg)
         fp_pipe = popen(command, "r");
         if (!fp_pipe)
         {
-            printf("ERROR: no puc crear canonada per al fitxer %s.\n", line);
+            printf("ERROR: no puc crear canonada per al fitxer.\n");
             continue;
         }
 
-        while (fgets(line, MAXLINE, fp_pipe) != NULL) {
+        while (fgets(lines[i], MAXLINE, fp_pipe) != NULL && i<N) {
             /* Remove the \n at the end of the line */
 
-            line[strlen(line) - 1] = 0;
+            lines[i][strlen(lines[i]) - 1] = 0;
+	    i++;
 
-            /* Process the line */
-
-            process_line(line, tree_local); 
         }
 
+	pthread_mutex_lock(&mutex);
+	for(j=0;j<i;j++){
+	    strcpy(buffer[w]->items[j],lines[j]);
+	}
+	buffer[w]->size = i;
+	w = (w + 1) % NUM_THREADS;
+	cont++;
+	pthread_mutex_lock(&mutex);
+
         pclose(fp_pipe);
+    }
+
+    return ((void *)0);
+}
+
+void *consumer(void *arg){
+
+    RBTree *tree_local;  /* This is the local tree!!! */
+    int i;
+    struct parameters *temp;
+    struct info_threads *info;
+
+    info = (struct info_threads *) arg;
+    
+
+    /* Allocate memory for local tree */
+    tree_local = (RBTree *) malloc(sizeof(RBTree));
+
+    /* Initialize the tree */
+    initTree(tree_local);
+
+    while(cont != 0 || finished == 0){
+	pthread_mutex_lock(&mutex);
+	while(cont == 0){
+	    if(finished == 1){
+		pthread_cond_signal(&cond_prod);
+		pthread_mutex_unlock(&mutex);
+		return ((void *)0);
+	    }
+	    pthread_cond_wait(&cond_cons, &mutex);
+	}
+
+    	temp = buffer[r];
+	free(buffer[r]);
+	r = (r + 1) % NUM_THREADS;
+	cont--;
+	pthread_mutex_unlock(&mutex);  
+        
+       
+        for(i=0; i < temp->size; i++){
+	    
+            /* Process the line */
+
+            process_line(temp->items[i], tree_local); 
+        }
 
         /* Copy all data from local tree to global tree */
 
@@ -292,8 +347,7 @@ void *create_tree_thread(void *arg)
     }
 
     free(tree_local);
-
-    return NULL;
+    return ((void *)0);
 }
 
 /**
@@ -306,7 +360,6 @@ void *create_tree_thread(void *arg)
 RBTree *create_tree(char *filename)
 {
     struct info_threads info;
-    pthread_t ntid[NUM_THREADS];
 
     FILE *fp;
     RBTree *tree;
@@ -359,15 +412,14 @@ RBTree *create_tree(char *filename)
 
     /* Create threads */
 
-    num_thread = 1;
-
+    pthread_create(&prod, NULL, producer, &info);
     for(i = 0; i < NUM_THREADS; i++)
-        pthread_create(&ntid[i], NULL, create_tree_thread, &info);
+        pthread_create(&cons[i], NULL, consumer, &info);
 
     /* Wait for threads to finish */
-
+    pthread_join(prod, NULL);
     for(i = 0; i < NUM_THREADS; i++)
-        pthread_join(ntid[i], NULL);
+        pthread_join(cons[i], NULL);
 
     /* Free dynamic memory */
 
