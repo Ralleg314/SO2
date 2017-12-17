@@ -14,7 +14,7 @@
 #include "red-black-tree.h"
 
 #define NUM_THREADS  4 
-#define N 2000
+#define N            2000
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
 
@@ -22,10 +22,10 @@ int num_thread;  // Just for debugging purposes
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_t prod, cons[NUM_THREADS];
 pthread_cond_t cond_cons, cond_prod;
-int cont = 0;
-int w = 0;
-int r = 0;
-int finished = 0;
+int cont;
+int w;
+int r;
+int finished;
 
 
 /**
@@ -35,19 +35,21 @@ int finished = 0;
  *
  */
 
-struct info_threads {
-    RBTree *tree_global;
-    int index;   // common counter for all the threads
-    int num_pdfs;
-    char **filename_pdfs;
-};
-
 struct parameters{
     char items[N][MAXLINE];
     int size;
 };
 
-struct parameters *buffer[NUM_THREADS];
+
+struct info_threads {
+    RBTree *tree_global;
+    int index;   // common counter for all the threads
+    int num_pdfs;
+    char **filename_pdfs;
+    struct parameters *buffer;
+};
+
+
 
 /**
  *
@@ -280,9 +282,9 @@ void *producer(void *arg){
 
 	pthread_mutex_lock(&mutex);
 	for(j=0;j<i;j++){
-	    strcpy(buffer[w]->items[j],lines[j]);
+	    strcpy(info->buffer[w].items[j],lines[j]);
 	}
-	buffer[w]->size = i;
+	info->buffer[w].size = i;
 	w = (w + 1) % NUM_THREADS;
 	cont++;
 	pthread_mutex_lock(&mutex);
@@ -297,7 +299,7 @@ void *consumer(void *arg){
 
     RBTree *tree_local;  /* This is the local tree!!! */
     int i;
-    struct parameters *temp;
+    struct parameters temp;
     struct info_threads *info;
 
     info = (struct info_threads *) arg;
@@ -320,18 +322,17 @@ void *consumer(void *arg){
 	    pthread_cond_wait(&cond_cons, &mutex);
 	}
 
-    	temp = buffer[r];
-	free(buffer[r]);
+    temp = info->buffer[r];
 	r = (r + 1) % NUM_THREADS;
 	cont--;
 	pthread_mutex_unlock(&mutex);  
         
        
-        for(i=0; i < temp->size; i++){
+        for(i=0; i < temp.size; i++){
 	    
             /* Process the line */
 
-            process_line(temp->items[i], tree_local); 
+            process_line(temp.items[i], tree_local); 
         }
 
         /* Copy all data from local tree to global tree */
@@ -363,12 +364,14 @@ RBTree *create_tree(char *filename)
 
     FILE *fp;
     RBTree *tree;
+    struct parameters *buffer;
 
     int i, num_pdfs;
     char line[MAXLINE], **filename_pdfs;
 
     /* Allocate memory for tree */
     tree = (RBTree *) malloc(sizeof(RBTree));
+    buffer = (struct parameters *) malloc(sizeof(struct parameters)* NUM_THREADS);
 
     /* Initialize the tree */
     initTree(tree);
@@ -383,11 +386,12 @@ RBTree *create_tree(char *filename)
     /* Llegim el fitxer. Suposem que el fitxer esta en un format correcte */
     fgets(line, MAXLINE, fp);
     num_pdfs = atoi(line);
-    filename_pdfs = (char **) malloc(sizeof(char *) * num_pdfs); 
+    filename_pdfs = (char **) malloc(sizeof(char *) * num_pdfs);
 
     /* Llegim els noms dels fitxers PDF a processar */
     for(i = 0; i < num_pdfs; i++)
     {
+
         fgets(line, MAXLINE, fp); 
         line[strlen(line)-1]=0;
 
@@ -400,7 +404,6 @@ RBTree *create_tree(char *filename)
         filename_pdfs[i] = (char *) malloc(sizeof(char) * (strlen(line) + 1));
         strcpy(filename_pdfs[i], line);
     }
-
     fclose(fp);
 
     /* This is the information that has to be passed to the secondary threads */ 
@@ -409,6 +412,13 @@ RBTree *create_tree(char *filename)
     info.index = 0;
     info.num_pdfs = num_pdfs;
     info.filename_pdfs = filename_pdfs;
+    info.buffer = buffer;
+
+    /* inicializar el buffer */
+    cont = 0;
+    w = 0;
+    r = 0;
+    finished = 0;
 
     /* Create threads */
 
@@ -427,6 +437,7 @@ RBTree *create_tree(char *filename)
        free(filename_pdfs[i]);
     
     free(filename_pdfs); 
+    free(buffer);
 
     return tree;
 }
