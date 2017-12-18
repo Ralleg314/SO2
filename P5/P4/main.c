@@ -226,9 +226,8 @@ void *producer(void *arg){
     struct info_threads *info;
 
     char lines[N][MAXLINE], command[MAXLINE], *filename;
-    int thread_id,  i=0, j;
+    int thread_id,  i, j;
     
-
     info = (struct info_threads *) arg;
 
     /* Each thread received its own ID */
@@ -239,7 +238,7 @@ void *producer(void *arg){
 
     while (!finished)
     {
-	while(cont == NUM_THREADS){
+        while(cont == NUM_THREADS){
       	    pthread_cond_wait(&cond_prod, &mutex);
     	}
         pthread_mutex_lock(&mutex);
@@ -248,13 +247,14 @@ void *producer(void *arg){
             info->index++;
         }
         else{
+            printf("finish");
             finished = 1;
-	    filename = "."; //filename may be uninitialized
-	}
+            filename = "."; //filename may be uninitialized
+        }
         pthread_mutex_unlock(&mutex);
 
         if (finished)  /* Jump to the while if finished */
-          continue;  
+            continue;  
 
         printf("Fil %d, processant fitxer %s\n", thread_id, filename);
 
@@ -271,28 +271,39 @@ void *producer(void *arg){
             printf("ERROR: no puc crear canonada per al fitxer.\n");
             continue;
         }
-
+        
+        
+        
+        
+        /* REHACER PRACTICAMENTE ENTERO */
+        i = 0;
+        
         while (fgets(lines[i], MAXLINE, fp_pipe) != NULL && i<N) {
             /* Remove the \n at the end of the line */
-
             lines[i][strlen(lines[i]) - 1] = 0;
-	    i++;
-
+            i++;
+        
+            pthread_mutex_lock(&mutex);
+        
+            for(j=0;j<i;j++){
+                strcpy(info->buffer[w].items[j],lines[j]);
+            }
+        
+            info->buffer[w].size = i;
+            w = (w + 1) % NUM_THREADS;
+            cont++;
+            pthread_cond_signal(&cond_cons);
+            pthread_mutex_unlock(&mutex);
         }
-
-	pthread_mutex_lock(&mutex);
-	for(j=0;j<i;j++){
-	    strcpy(info->buffer[w].items[j],lines[j]);
-	}
-	info->buffer[w].size = i;
-	w = (w + 1) % NUM_THREADS;
-	cont++;
-	pthread_mutex_lock(&mutex);
-
+        /* GUARDA SOLO HASTA 2000, NO CAMBIA DE POSICION DE MEMORIA */
+        
+        
+        
         pclose(fp_pipe);
     }
-
-    return ((void *)0);
+    printf("producer done");
+    /* producer termina y aparece una segmentation fault por algun motivo, el o otro hilo */
+    return NULL;
 }
 
 void *consumer(void *arg){
@@ -310,45 +321,44 @@ void *consumer(void *arg){
 
     /* Initialize the tree */
     initTree(tree_local);
-
+    
     while(cont != 0 || finished == 0){
-	pthread_mutex_lock(&mutex);
-	while(cont == 0){
-	    if(finished == 1){
-		pthread_cond_signal(&cond_prod);
-		pthread_mutex_unlock(&mutex);
-		return ((void *)0);
-	    }
-	    pthread_cond_wait(&cond_cons, &mutex);
-	}
-
-    temp = info->buffer[r];
-	r = (r + 1) % NUM_THREADS;
-	cont--;
-	pthread_mutex_unlock(&mutex);  
+        pthread_mutex_lock(&mutex);
         
-       
-        for(i=0; i < temp.size; i++){
-	    
-            /* Process the line */
-
-            process_line(temp.items[i], tree_local); 
+        while(cont == 0){
+            
+            if(finished == 1){
+                /* el primero en acabar despertara en cadena a los dormidos */
+                pthread_cond_signal(&cond_cons);
+                pthread_mutex_unlock(&mutex);
+                return (NULL);
+            }
+            
+            pthread_cond_wait(&cond_cons, &mutex);
         }
-
+        temp = info->buffer[r];
+        r = (r + 1) % NUM_THREADS;
+        cont--;
+        pthread_cond_signal(&cond_prod);
+        pthread_mutex_unlock(&mutex);
+        
+        for(i=0; i < temp.size; i++){
+            /* Process the line */
+            process_line(temp.items[i], tree_local);
+        }
+        
         /* Copy all data from local tree to global tree */
-
         tree_copy_local2global(tree_local, info->tree_global);
-
+        
         /* Delete tree */
-
         deleteTree(tree_local);
-
+        
         /* Initialize the tree */
         initTree(tree_local);
     }
-
     free(tree_local);
-    return ((void *)0);
+    printf("consumer done\n");
+    return NULL;
 }
 
 /**
@@ -430,7 +440,7 @@ RBTree *create_tree(char *filename)
     pthread_join(prod, NULL);
     for(i = 0; i < NUM_THREADS; i++)
         pthread_join(cons[i], NULL);
-
+    
     /* Free dynamic memory */
 
     for(i = 0; i < num_pdfs; i++)
